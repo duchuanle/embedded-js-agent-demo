@@ -220,6 +220,11 @@
   font-size: 14px;
 }
 
+#chat-input:disabled {
+  background: #f3f3f3;
+  cursor: not-allowed;
+}
+
 #send-btn {
   /*padding: 10px 14px;
   border-radius: 10px;
@@ -232,6 +237,11 @@
   border-radius: 16px;
   cursor: pointer;
   font-size: 18px;
+}
+
+#send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* THINKING */
