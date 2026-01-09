@@ -120,6 +120,31 @@
   const nameInput = container.querySelector("#user-name");
   const phoneInput = container.querySelector("#user-phone");
   const emailInput = container.querySelector("#user-email");
+  const emailError = document.createElement("div");
+  emailError.style.color = "red";
+  emailError.style.fontSize = "12px";
+  emailError.style.display = "none";
+  emailInput.parentNode.appendChild(emailError);
+
+  emailInput.addEventListener("blur", () => {
+    const email = emailInput.value.trim();
+
+    if (!email) {
+      emailError.style.display = "none";
+      emailInput.classList.remove("error");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      emailError.textContent = "Invalid email address";
+      emailError.style.display = "block";
+      emailInput.classList.add("error");
+    } else {
+      emailError.style.display = "none";
+      emailInput.classList.remove("error");
+    }
+  });
+
   const startBtn = container.querySelector("#start-btn");
 
   const chatScreen = container.querySelector("#chat-screen");
@@ -159,15 +184,10 @@
       .join("");
   }
   
-  function isUserNearBottom(threshold = 40) {
-  return (
-    messagesBox.scrollHeight -
-    messagesBox.scrollTop -
-    messagesBox.clientHeight <
-    threshold
-  );
-}
-
+  function isValidEmail(email) {
+    // simple + safe frontend validation
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
 
   function applyLanguage() {
     const t = i18n[lang];
@@ -486,6 +506,16 @@
     if (!name || !phone || !email) {
       return alert("Please complete all fields.");
     }
+
+    if (!isValidEmail(email)) {
+      emailError.textContent = "Please enter a valid email address";
+      emailError.style.display = "block";
+      emailInput.focus();
+      return;
+    }
+
+    emailError.style.display = "none";
+    emailInput.classList.remove("error");
 
     userData = { name, phone, email, lang };
 
