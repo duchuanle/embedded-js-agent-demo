@@ -9,6 +9,7 @@
   let container = document.getElementById("chat-widget-container");
   let sessionId = "";
   let pendingThinking = null;
+  let isWaitingForResponse = false;
 
   // -------------------
   // i18n
@@ -325,6 +326,8 @@
 		b.innerText = btn.label;
 
 		b.onclick = () => {
+      if (isWaitingForResponse) return;
+
       // show label as user message
       addMessage(btn.label, "user");
       scrollToBottom(true);
@@ -391,6 +394,13 @@
 
   async function sendToBackend(payload) {
 
+    if (isWaitingForResponse) return;
+
+    isWaitingForResponse = true;
+    // disable input UI
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+
     // // 🔥 1️⃣ Immediately show thinking bubble
     // pendingThinking = addThinkingMessage();
     const isInit = payload?.type === "init";
@@ -400,55 +410,69 @@
       pendingThinking = addThinkingMessage();
     }
 
-    const res = await fetch(WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    let data = null;
     try {
-      data = await res.json();
-    } catch {
-      const raw = await res.text();
-      console.log("⚠️ Invalid server response");
-      console.log("RAW:", raw);
+      const res = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-      if (pendingThinking) pendingThinking.textContent = "⚠️ Server Error";
-      pendingThinking = null;
-      return;
-    }
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        const raw = await res.text();
+        console.log("⚠️ Invalid server response");
+        console.log("RAW:", raw);
 
-    // ---- Process AI response ----
-    if (data.agent_response) {
+        if (pendingThinking) pendingThinking.textContent = "⚠️ Server Error";
+        pendingThinking = null;
+        return;
+      }
 
-      // array of messages
-      if (Array.isArray(data.agent_response)) {
-        for (const msg of data.agent_response) {
-          
+      // ---- Process AI response ----
+      if (data.agent_response) {
+
+        // array of messages
+        if (Array.isArray(data.agent_response)) {
+          for (const msg of data.agent_response) {
+            
+            if (pendingThinking) {
+              pendingThinking.classList.remove("thinking");
+              pendingThinking.innerHTML = simpleMarkdown(msg);
+              pendingThinking = null;
+            } else {
+              addMessage(msg, "bot");
+            }
+          }
+        }
+
+        // single string
+        else if (typeof data.agent_response === "string") {
           if (pendingThinking) {
             pendingThinking.classList.remove("thinking");
-            pendingThinking.innerHTML = simpleMarkdown(msg);
+            pendingThinking.innerHTML = simpleMarkdown(data.agent_response);
             pendingThinking = null;
           } else {
-            addMessage(msg, "bot");
+            addMessage(data.agent_response, "bot");
           }
         }
       }
 
-      // single string
-      else if (typeof data.agent_response === "string") {
-        if (pendingThinking) {
-          pendingThinking.classList.remove("thinking");
-          pendingThinking.innerHTML = simpleMarkdown(data.agent_response);
-          pendingThinking = null;
-        } else {
-          addMessage(data.agent_response, "bot");
-        }
-      }
-    }
+      if (data.buttons) showButtons(data.buttons);
 
-    if (data.buttons) showButtons(data.buttons);
+    } catch (err) {
+      console.error("❌ Network error:", err);
+      if (pendingThinking) pendingThinking.textContent = "⚠️ Network error";
+
+    } finally {
+      // 🔓 THIS IS WHAT YOU WERE MISSING
+      isWaitingForResponse = false;
+      chatInput.disabled = false;
+      sendBtn.disabled = false;
+      chatInput.focus();
+    }
+    
   }
 
   // ========================================================
@@ -487,13 +511,17 @@
   // Send Message
   // ========================================================
   sendBtn.onclick = () => {
+    if (isWaitingForResponse) return;
     const text = chatInput.value;
     if (!text) return;
     sendMessage(text);
   };
 
   chatInput.onkeydown = (e) => {
-    if (e.key === "Enter") sendBtn.click();
+    if (e.key === "Enter") {
+      if (isWaitingForResponse) return;
+      sendBtn.click();
+    }
   };
 
   function sendMessage(text) {
